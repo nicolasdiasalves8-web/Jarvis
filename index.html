@@ -43,7 +43,7 @@ ul{list-style:none;margin:0;padding:0}li{padding:8px 0;border-bottom:1px solid r
 <div class="p c4"><h2>Resultado</h2><div class="big" id="k2">R$ 0</div></div>
 <div class="p c4"><h2>Macro</h2><div class="mono" id="mc"></div><div class="sm" id="upd"></div></div>
 <div class="p c7"><h2>Ativos</h2><div class="sc"><table><thead><tr><th>Ativo</th><th>Preço</th><th>Dia</th><th>Resultado</th></tr></thead><tbody id="mv"></tbody></table></div></div>
-<div class="p c5"><h2>Analistas (EUA)</h2><ul id="an"></ul><h2 style="margin-top:16px">Notícias</h2><ul id="nw"></ul></div>
+<div class="p c5"><h2>Analistas (EUA)</h2><ul id="an"></ul><div class="row" style="justify-content:space-between;align-items:center;margin-top:16px"><h2 style="margin:0">Notícias</h2><button id="tr">Traduzir</button></div><ul id="nw"></ul></div>
 </section>
 <section id="v-cart" class="g" style="grid-column:span 12;padding:0" hidden>
 <div class="p c7"><h2>Carteira e acompanhamento</h2><div class="row"><input id="ck" placeholder="Ativo (PETR4)"><input id="cq" type="number" placeholder="Qtd (0 = só acompanhar)"><input id="cp" type="number" step="0.01" placeholder="Preço médio"><button class="pr" id="ca">Adicionar</button></div><div class="sc"><table><thead><tr><th>Ativo</th><th>Qtd</th><th>PM</th><th></th></tr></thead><tbody id="cb"></tbody></table></div></div>
@@ -141,8 +141,15 @@ function di(){$("dl").innerHTML=S.notes.map(function(n,i){return"<li><b>"+esc(n.
 function cf(){$("f1").value=S.cfg.brapi;$("f2").value=S.cfg.finn;$("f3").value=S.cfg.claude;$("f4").value=S.cfg.us;$("f5").value=S.cfg.obj;$("f6").value=S.cfg.proxy||""}
 function renderAll(){dash();cart();al();di()}
 
+async function tr(){var key=S.cfg.claude;if(!key)return say("Para traduzir, cole a chave da Anthropic em Ajustes.");
+var it=S.news.filter(function(n){return!n.pt&&/\b(the|of|and|to|in|for|on|as|is|with|says|after|stock|market)\b/i.test(n.h)}).slice(0,16);if(!it.length)return say("Nenhuma manchete em inglês para traduzir.");
+say("Traduzindo…");
+try{var r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-5-5",max_tokens:1500,messages:[{role:"user",content:"Traduza para português do Brasil as manchetes abaixo. Responda apenas com as traduções, uma por linha, na mesma ordem, sem numeração.\n\n"+it.map(function(n){return n.h}).join("\n")}]})});
+var j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status);var ls=j.content.map(function(c){return c.text||""}).join("").split("\n").filter(Boolean);
+it.forEach(function(n,i){if(ls[i]){n.o=n.h;n.h=ls[i].trim();n.pt=1}});sv();dash();say("Manchetes traduzidas.")}catch(e){say("Erro ao traduzir: "+e.message)}}
+$("tr").onclick=tr;
 /* ações */
-$("rf").onclick=refresh;
+$("rf").onclick=refresh;try{navigator.storage.persist()}catch(e){}
 $("ca").onclick=function(){var k=$("ck").value.trim().toUpperCase(),q=+$("cq").value||0,c=+$("cp").value||0;if(!/^[A-Z]{4}\d{1,2}$/.test(k))return say("Ativo inválido. Exemplo: PETR4");if(S.demo){S.hold=[];S.px={};S.demo=0}S.hold=S.hold.filter(function(h){return h.k!==k});S.hold.push({k:k,q:q,c:c});sv();["ck","cq","cp"].forEach(function(i){$(i).value=""});renderAll()};
 $("cb").onclick=function(e){var r=e.target.getAttribute("data-r");if(r!==null){S.hold.splice(+r,1);sv();renderAll()}};
 $("ib").onclick=function(){var o=[];$("ip").value.split(/\n/).forEach(function(l){var t=l.trim().split(/[\t;\s]+/),k=(t[0]||"").toUpperCase();if(!/^[A-Z]{4}\d{1,2}$/.test(k))return;var n=t.slice(1).map(num).filter(isFinite);if(n.length>1&&n[0]>0)o.push({k:k,q:n[0],c:n[1]})});if(!o.length)return say("Nenhuma linha reconhecida. Use: ATIVO quantidade preço-médio");S.hold=o;S.demo=0;sv();$("ip").value="";renderAll();say(o.length+" ativos importados. Clique em Atualizar dados.")};
